@@ -2,6 +2,7 @@ GOCMD=go
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
 BINARY_NAME=local-ai
+LAUNCHER_BINARY_NAME=local-ai-launcher
 
 GORELEASER?=
 
@@ -90,7 +91,17 @@ build: protogen-go install-go-tools ## Build the project
 	$(info ${GREEN}I LD_FLAGS: ${YELLOW}$(LD_FLAGS)${RESET})
 	$(info ${GREEN}I UPX: ${YELLOW}$(UPX)${RESET})
 	rm -rf $(BINARY_NAME) || true
-	CGO_LDFLAGS="$(CGO_LDFLAGS)" $(GOCMD) build -ldflags "$(LD_FLAGS)" -tags "$(GO_TAGS)" -o $(BINARY_NAME) ./
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" $(GOCMD) build -ldflags "$(LD_FLAGS)" -tags "$(GO_TAGS)" -o $(BINARY_NAME) ./cli/local-ai
+
+build-launcher: ## Build the launcher application
+	$(info ${GREEN}I local-ai launcher build info:${RESET})
+	$(info ${GREEN}I BUILD_TYPE: ${YELLOW}$(BUILD_TYPE)${RESET})
+	$(info ${GREEN}I GO_TAGS: ${YELLOW}$(GO_TAGS)${RESET})
+	$(info ${GREEN}I LD_FLAGS: ${YELLOW}$(LD_FLAGS)${RESET})
+	rm -rf $(LAUNCHER_BINARY_NAME) || true
+	CGO_LDFLAGS="$(CGO_LDFLAGS)" $(GOCMD) build -ldflags "$(LD_FLAGS)" -tags "$(GO_TAGS)" -o $(LAUNCHER_BINARY_NAME) ./cli/launcher
+
+build-all: build build-launcher ## Build both server and launcher
 
 dev-dist:
 	$(GORELEASER) build --snapshot --clean
@@ -507,3 +518,28 @@ docs-clean:
 .PHONY: docs
 docs: docs/static/gallery.html
 	cd docs && hugo serve
+
+########################################################
+## Platform-specific builds
+########################################################
+
+## fyne cross-platform build
+build-launcher-darwin:
+	cd cli/launcher && go run fyne.io/tools/cmd/fyne@latest package -os darwin -icon ../../core/http/static/logo.png --executable $(LAUNCHER_BINARY_NAME)-darwin && mv launcher.app ../../$(LAUNCHER_BINARY_NAME)-darwin.app
+
+build-launcher-linux:
+	cd cli/launcher && go run fyne.io/tools/cmd/fyne@latest package -os linux -icon ../../core/http/static/logo.png --executable $(LAUNCHER_BINARY_NAME)-linux && mv launcher.tar.xz ../../$(LAUNCHER_BINARY_NAME)-linux.tar.xz
+
+# macOS DMG creation (requires macOS)
+create-dmg: build-launcher-darwin ## Create macOS DMG
+ifeq ($(OS),Darwin)
+	@echo "Creating macOS DMG package..."
+	mkdir -p dist/LocalAI-Launcher
+	cp -rfv $(LAUNCHER_BINARY_NAME)-darwin.app dist/LocalAI-Launcher/LocalAI-Launcher
+	ln -sf /Applications dist/LocalAI-Launcher/Applications
+	hdiutil create -volname "LocalAI Launcher" -srcfolder dist/LocalAI-Launcher -ov -format UDZO dist/LocalAI-Launcher.dmg
+	rm -rf dist/LocalAI-Launcher
+	@echo "DMG created: dist/LocalAI-Launcher.dmg"
+else
+	@echo "DMG creation requires macOS"
+endif

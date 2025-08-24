@@ -21,3 +21,45 @@ jobs:
       - name: Run GoReleaser
         run: |
           make dev-dist
+  launcher-build-darwin:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23
+      - name: Build launcher for macOS ARM64
+        run: |
+          make create-dmg
+          ls -liah dist
+      - name: Upload macOS launcher artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-macos
+          path: dist/
+          retention-days: 30
+      
+  launcher-build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23
+      - name: Build launcher for Linux
+        run: |
+          make build-launcher-linux
+      - name: Upload Linux launcher artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-linux
+          path: local-ai-launcher-linux.tar.xz
+          retention-days: 30
